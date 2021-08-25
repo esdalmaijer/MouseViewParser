@@ -4,6 +4,7 @@
 import os
 import csv
 import copy
+import time
 
 import numpy
 
@@ -28,6 +29,7 @@ def read_file(file_path, trial_folder_path, custom_fields=None, \
             " {}, but '.csv', '.tsv', or '.txt' was expected.".format(ext))
     
     # Open the file.
+    t0 = time.time()
     with open(file_path, "r") as f:
         # Snif out the dialect. We're using a large chunk of data for this,
         # as the header gets quite big.
@@ -58,7 +60,6 @@ def read_file(file_path, trial_folder_path, custom_fields=None, \
         itrial = header.index("Trial Number")
         izone = header.index("Zone Type")
         iresp = header.index("Response")
-        itime = header.index("Reaction Onset")
         
         # Find the custom fields.
         if custom_fields is None:
@@ -97,6 +98,9 @@ def read_file(file_path, trial_folder_path, custom_fields=None, \
                     "public_id":line[ipublic], \
                     "private_id":line[iprivate], \
                     }
+                if verbose:
+                    print("{}: Reading ".format(round(time.time()-t0),3) + \
+                        "participant {}".format(current_participant))
             
             # Get the trial number.
             trial_nr = line[itrial]
@@ -138,7 +142,7 @@ def read_file(file_path, trial_folder_path, custom_fields=None, \
                 # something went wrong in the Gorilla file, as the file name
                 # comes from there! Or someone messed with either the OG file
                 # or the trial file names...)
-                if participant != line[iprivate]:
+                if str(participant) != line[iprivate]:
                     raise Exception("File {} is listed for ".format(fname) + \
                         "participant {}, ".format(current_participant) + \
                         "but the file itself reports to be from " + \
@@ -243,24 +247,7 @@ def read_single_trial_file(file_path, custom_fields=None, verbose=False):
     # Get the active sheet (this is the first one, which should be the
     # only one in the Gorilla output).
     sheet = workbook.active
-    # Get the first row as the header.
-    first_row = sheet.rows.next()
-    header = [cell.value for cell in first_row]
-    len_header = len(header)
-    
-    # Get the index numbers for important rows. (We do this once, to avoid
-    # having to call "index" on each iteration.)
-    iparticipant = header.index("participant_id")
-    itype = header.index("type")
-    izone = header.index("zone_name")
-    ihor = header.index("zone_x")
-    iver = header.index("zone_y")
-    iwidth = header.index("zone_width")
-    iheight = header.index("zone_height")
-    itime = header.index("time_stamp")
-    ix = header.index("x")
-    iy = header.index("y")
-    
+
     # Store the values for the current trial in this trial dict.
     trial = { \
         "msg":[], \
@@ -274,6 +261,27 @@ def read_single_trial_file(file_path, custom_fields=None, verbose=False):
     viewport = None
     for i, row in enumerate(sheet.rows):
 
+        # Get the first row as the header.
+        if i == 0:
+            # Get the header.
+            header = [cell.value for cell in row]
+            # Count the number of columns in the file.
+            len_header = len(header)
+            # Get the index numbers for important rows. (We do this once, to
+            # avoid having to call "index" on each iteration.)
+            iparticipant = header.index("participant_id")
+            itype = header.index("type")
+            izone = header.index("zone_name")
+            ihor = header.index("zone_x")
+            iver = header.index("zone_y")
+            iwidth = header.index("zone_width")
+            iheight = header.index("zone_height")
+            itime = header.index("time_stamp")
+            ix = header.index("x")
+            iy = header.index("y")
+            # Skip to the next line in the file.
+            continue
+        
         # Check if the line is the expected length.
         if len(row) != len_header:
             if verbose:
@@ -299,7 +307,7 @@ def read_single_trial_file(file_path, custom_fields=None, verbose=False):
         # Process rows that are NOT MouseView coordinates.
         else:
             # Add the row as a message.
-            t = float(row[itime])
+            t = float(row[itime].value)
             msg = \
                 "type={};zone={};zone_x={};zone_y={};zone_w={};zone_h={}" \
                 .format(row[itype].value, row[izone].value, \
