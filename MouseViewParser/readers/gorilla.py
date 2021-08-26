@@ -10,6 +10,24 @@ import numpy
 
 import openpyxl
 
+# This is a number caster that can deal with NaN values. It should replace
+# the openpyxl number caster, which tries to cast NaNs as int, and thus
+# results in ValueError exceptions.
+def _cast_number_or_nan(value):
+    "Convert numbers as string to an int or float"
+    if value == "NaN" or value == "nan" or value == "NA":
+        return float(value)
+    if "." in value or "E" in value or "e" in value:
+        return float(value)
+    return int(value)
+
+# Only overwrite the number caster if a number caster exists. (It was not a
+# part of earlier versions).
+import openpyxl.worksheet
+if hasattr(openpyxl.worksheet, "_reader"):
+    # Overwrite the openpyxl number caster, because it chokes on NaNs.
+    openpyxl.worksheet._reader._cast_number = _cast_number_or_nan
+
 
 def read_file(file_path, trial_folder_path, custom_fields=None, \
     use_public_id=False, verbose=False):
@@ -99,7 +117,7 @@ def read_file(file_path, trial_folder_path, custom_fields=None, \
                     "private_id":line[iprivate], \
                     }
                 if verbose:
-                    print("{}: Reading ".format(round(time.time()-t0),3) + \
+                    print("{}: Reading ".format(round(time.time()-t0,3)) + \
                         "participant {}".format(current_participant))
             
             # Get the trial number.
@@ -119,6 +137,8 @@ def read_file(file_path, trial_folder_path, custom_fields=None, \
                 fname = line[iresp]
                 file_path = os.path.join(trial_folder_path, fname)
                 # Load the data, if it exists.
+#                if verbose:
+#                    print("Loading file {}".format(file_path))
                 if os.path.isfile(file_path):
                     participant, viewport, trial = \
                         read_single_trial_file(file_path, verbose=verbose)
@@ -259,7 +279,7 @@ def read_single_trial_file(file_path, custom_fields=None, verbose=False):
     # Loop through all the rows, and parse them as necessary.
     current_participant = None
     viewport = None
-    for i, row in enumerate(sheet.rows):
+    for i, row in enumerate(sheet.iter_rows()):
 
         # Get the first row as the header.
         if i == 0:
